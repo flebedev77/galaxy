@@ -1,4 +1,4 @@
 #!/bin/sh
 
 set -xe
-odin run game
+odin run game -debug
