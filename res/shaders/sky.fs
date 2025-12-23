@@ -93,14 +93,14 @@ float noise3(vec3 p){
 void main() {
   vec3 sampl = voronoi3d(fragNormal*100);
   float sparkle = sin(time+id(fragPosition)*3) * 0.03;
-  float col = smoothstep(0.89 + sparkle, 1, 1-sampl.x);
+  float col = smoothstep(0.89 + sparkle, 0.95, 1-sampl.x)*0.4;
   vec4 stars_col = vec4(col, col, col, 1.0);
 
-  // float shared_weight = 0.09;
-  float shared_weight = 0.2;
+  float shared_weight = 0.13;
+  // float shared_weight = 0.2;
   float purple_weight = noise3(fragNormal*2) * shared_weight;
   finalColor = mix(stars_col,  vec4(0.357, 0.047, 0.478, 1.0), purple_weight);
   finalColor = mix(finalColor, vec4(0.957, 0.357, 0.055, 1.0), noise3(fragNormal*0.7) * shared_weight);
   // finalColor = mix(finalColor, vec4(0.957, 0.357, 0.055, 1.0), mix(purple_weight, noise3(fragNormal*10) * 0.1, shared_weight));
-  finalColor = mix(finalColor, vec4(0.055, 0.612, 0.957, 1.0), noise3(fragNormal*2+300) * shared_weight*0.2);
+  finalColor = mix(finalColor, vec4(0.055, 0.612, 0.957, 1.0), noise3(fragNormal*2+300) * shared_weight*0.4);
 }

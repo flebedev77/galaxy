@@ -41,6 +41,13 @@ Planet :: struct {
   path_prediction_enabled: bool,
 }
 
+Bullet :: struct {
+  position: rl.Vector3,
+  forward: rl.Vector3,
+  speed: f32,
+  model: ^rl.Model,
+}
+
 Player :: struct {
   model: ^rl.Model,
   position: rl.Vector3,
@@ -54,6 +61,7 @@ Player :: struct {
   roll: f32,
   camera_distance: f32
 }
+
 
 camera_focus_body: ^Planet
 camera_speed: f32 = 500
@@ -69,6 +77,10 @@ simulation_running: bool = false
 simulation_speed_scalar: f32 = 1
 
 local_player: Player
+
+screen_size: rl.Vector2 = {1920, 1080};
+
+crosshair_size: f32 = 40
 
 init_camera :: proc(camera: ^rl.Camera) {
   camera.position = camera_focus_body.position + {18000, 10600, 0}
@@ -124,44 +136,47 @@ update_camera :: proc(camera: ^rl.Camera, dt_warped: f32) {
         camera.position += camera_focus_body.velocity * dt_warped
       }
       camera.target = camera_focus_body.position
-    } else if game_state == .GAME {
-      camera.target = local_player.position;
     }
 }
 
 update_localplayer :: proc(camera: ^rl.Camera) {
     rl.DrawModel(local_player.model^, local_player.position, 0.38, rl.WHITE)
-    rlgl.DisableDepthMask()
-    rl.DrawCubeWiresV(local_player.position, local_player.size, rl.RED)
-    rlgl.EnableDepthMask()
+    // rlgl.DisableDepthMask()
+    // rl.DrawCubeWiresV(local_player.position, local_player.size, rl.RED)
+    // rlgl.EnableDepthMask()
 
-    speed: rl.Vector2 = {100 * rl.GetFrameTime(), 100 * rl.GetFrameTime()}
+    speed_mag: f32 = 20//100
+    speed: rl.Vector2 = {speed_mag * rl.GetFrameTime(), speed_mag * rl.GetFrameTime()}
 
     up_divergence: f32 = rl.Vector3DotProduct(local_player.up, GLOBAL_UP)
     if up_divergence < 0 && speed.x > 0 {
       speed.x *= -1
     }
 
-    if rl.IsKeyDown(.W) {
-      local_player.pitch -= speed.y
-    }
-    if rl.IsKeyDown(.S) {
-      local_player.pitch += speed.y
-    }
-    if rl.IsKeyDown(.A) {
-      local_player.yaw += speed.x
-    }
-    if rl.IsKeyDown(.D) {
-      local_player.yaw -= speed.x
-    }
-    if rl.IsKeyDown(.Z) {
-      local_player.roll += speed.x
-    }
-    if rl.IsKeyDown(.X) {
-      local_player.roll -= speed.x
-    }
+    mouse_delta: rl.Vector2 = rl.GetMouseDelta()// - screen_size/2;
 
-    // local_player.model.transform = rl.MatrixRotateXYZ({ rl.DEG2RAD*local_player.pitch, rl.DEG2RAD*local_player.yaw, rl.DEG2RAD*local_player.roll });
+    local_player.pitch -= mouse_delta.y * speed.y;
+    local_player.yaw -= mouse_delta.x * speed.x;
+
+    // if rl.IsKeyDown(.W) {
+    //   local_player.pitch -= speed.y
+    // }
+    // if rl.IsKeyDown(.S) {
+    //   local_player.pitch += speed.y
+    // }
+    // if rl.IsKeyDown(.A) {
+    //   local_player.yaw += speed.x
+    // }
+    // if rl.IsKeyDown(.D) {
+    //   local_player.yaw -= speed.x
+    // }
+    // if rl.IsKeyDown(.Z) {
+    //   local_player.roll += speed.x
+    // }
+    // if rl.IsKeyDown(.X) {
+    //   local_player.roll -= speed.x
+    // }
+
     local_player.forward = {
       math.cos_f32(local_player.pitch*rl.DEG2RAD) * math.sin_f32(local_player.yaw*rl.DEG2RAD),
       math.sin_f32(local_player.pitch*rl.DEG2RAD),
@@ -174,11 +189,11 @@ update_localplayer :: proc(camera: ^rl.Camera) {
     }
     local_player.up = rl.Vector3RotateByAxisAngle(local_player.up, local_player.forward, local_player.roll*rl.DEG2RAD)
 
-    rl.DrawLine3D(local_player.position, local_player.position + local_player.forward * 150, rl.GREEN)
-    rl.DrawLine3D(local_player.position, local_player.position + local_player.up * 150, rl.ORANGE)
+    // rl.DrawLine3D(local_player.position, local_player.position + local_player.forward * 150, rl.GREEN)
+    // rl.DrawLine3D(local_player.position, local_player.position + local_player.up * 150, rl.ORANGE)
 
     local_player.model.transform = 
-    rl.MatrixTranslate(
+      rl.MatrixTranslate(
       -local_player.position.x,
       -local_player.position.y,
       -local_player.position.z
@@ -193,6 +208,7 @@ update_localplayer :: proc(camera: ^rl.Camera) {
     if game_state == .GAME {
       camera.position = local_player.position - (local_player.forward - local_player.up*0.3) * local_player.camera_distance
       camera.up = local_player.up
+      camera.target = local_player.position + local_player.up * 40;
       
       // camera.position = local_player.position - (local_player.forward - GLOBAL_UP*0.3) * local_player.camera_distance
       // camera.up = GLOBAL_UP
@@ -201,14 +217,14 @@ update_localplayer :: proc(camera: ^rl.Camera) {
     }
 
 
-    throttle_speed : f32 = 0.5
-    if rl.IsKeyDown(.LEFT_SHIFT) {
+    throttle_speed : f32 = 1.9
+    if rl.IsKeyDown(.W) {
       local_player.throttle += throttle_speed
       if local_player.throttle > local_player.max_throttle {
         local_player.throttle = local_player.max_throttle
       }
     }
-    if rl.IsKeyDown(.LEFT_CONTROL) {
+    if rl.IsKeyDown(.S) {
       local_player.throttle -= throttle_speed
       if local_player.throttle < 0 {
         local_player.throttle = 0
@@ -223,9 +239,15 @@ main :: proc() {
   rl.DisableCursor()
   rlgl.SetClipPlanes(0.01, 100000)
 
+  screen_size = {f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())};
+
   when !DEV {
     rl.ToggleFullscreen()
   }
+
+  crosshair_image := rl.LoadImage("res/crosshair/Crosshair.png");
+  crosshair_texture := rl.LoadTextureFromImage(crosshair_image);
+  rl.UnloadImage(crosshair_image);
 
   skybox := rl.LoadModelFromMesh(rl.GenMeshSphere(10000, 100, 100))
   skybox.materials[0].shader = rl.LoadShader("res/shaders/sky.vs", "res/shaders/sky.fs")
@@ -306,7 +328,7 @@ main :: proc() {
       update_camera(&camera, dt)
     }
 
-    if !mouse_ingui {
+    if !mouse_ingui && game_state == .EDITOR {
 
       if rl.IsMouseButtonReleased(.LEFT) {
         mouse_enabled = !mouse_enabled
@@ -487,6 +509,19 @@ main :: proc() {
       }
     }
 
+    rl.DrawTexturePro(
+      crosshair_texture,
+      rl.Rectangle{0, 0, f32(crosshair_texture.width)-1, f32(crosshair_texture.height)-1},
+      rl.Rectangle{
+        screen_size.x/2 - crosshair_size/2,
+        screen_size.y/2 - crosshair_size/2,
+        crosshair_size, crosshair_size
+      },
+      rl.Vector2{0, 0},
+      0,
+      rl.WHITE
+    );
+
     rl.EndDrawing()
   }
 
@@ -494,6 +529,7 @@ main :: proc() {
   rl.UnloadModel(skybox)
   rl.UnloadFont(sekuya_font)
   rl.UnloadModel(player_model)
+  rl.UnloadTexture(crosshair_texture);
 
   rl.CloseWindow()
 }
