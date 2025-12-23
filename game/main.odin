@@ -44,6 +44,7 @@ Planet :: struct {
 Bullet :: struct {
   position: rl.Vector3,
   forward: rl.Vector3,
+  velocity: rl.Vector3,
   speed: f32,
   model: ^rl.Model,
 }
@@ -51,6 +52,7 @@ Bullet :: struct {
 Player :: struct {
   model: ^rl.Model,
   position: rl.Vector3,
+  velocity: rl.Vector3,
   size: rl.Vector3,
   forward: rl.Vector3,
   up: rl.Vector3,
@@ -59,7 +61,8 @@ Player :: struct {
   yaw: f32,
   pitch: f32,
   roll: f32,
-  camera_distance: f32
+  camera_distance: f32,
+  bullets: [dynamic]Bullet
 }
 
 
@@ -81,6 +84,8 @@ local_player: Player
 screen_size: rl.Vector2 = {1920, 1080};
 
 crosshair_size: f32 = 40
+
+bullet_model, player_model: rl.Model
 
 init_camera :: proc(camera: ^rl.Camera) {
   camera.position = camera_focus_body.position + {18000, 10600, 0}
@@ -140,13 +145,31 @@ update_camera :: proc(camera: ^rl.Camera, dt_warped: f32) {
 }
 
 update_localplayer :: proc(camera: ^rl.Camera) {
+    frame_delta: f32 = rl.GetFrameTime()
+
     rl.DrawModel(local_player.model^, local_player.position, 0.38, rl.WHITE)
+
+    for &bullet in local_player.bullets {
+      bullet.model.transform = model_lookat(
+        bullet.position,
+        bullet.position + bullet.forward,
+        GLOBAL_UP
+      )
+
+      rl.DrawModel(bullet.model^, bullet.position, 1, rl.YELLOW)
+
+      bullet.position += bullet.velocity * frame_delta
+    }
+
+    if game_state == .EDITOR {
+      return
+    }
     // rlgl.DisableDepthMask()
     // rl.DrawCubeWiresV(local_player.position, local_player.size, rl.RED)
     // rlgl.EnableDepthMask()
 
     speed_mag: f32 = 20//100
-    speed: rl.Vector2 = {speed_mag * rl.GetFrameTime(), speed_mag * rl.GetFrameTime()}
+    speed: rl.Vector2 = {speed_mag * frame_delta, speed_mag * frame_delta}
 
     up_divergence: f32 = rl.Vector3DotProduct(local_player.up, GLOBAL_UP)
     if up_divergence < 0 && speed.x > 0 {
@@ -192,17 +215,14 @@ update_localplayer :: proc(camera: ^rl.Camera) {
     // rl.DrawLine3D(local_player.position, local_player.position + local_player.forward * 150, rl.GREEN)
     // rl.DrawLine3D(local_player.position, local_player.position + local_player.up * 150, rl.ORANGE)
 
-    local_player.model.transform = 
-      rl.MatrixTranslate(
-      -local_player.position.x,
-      -local_player.position.y,
-      -local_player.position.z
-      ) * 
-    rl.MatrixInvert(rl.MatrixLookAt(
-        local_player.position - local_player.forward,
-        local_player.position, local_player.up
-    ))
-    local_player.position += local_player.forward * local_player.throttle
+    local_player.model.transform = model_lookat(
+      local_player.position,
+      local_player.position + local_player.forward,
+      local_player.up
+    )
+    local_player.velocity *= 0.1 * frame_delta
+    local_player.velocity += local_player.forward * local_player.throttle * 100
+    local_player.position += local_player.velocity * frame_delta
 
 
     if game_state == .GAME {
@@ -230,6 +250,17 @@ update_localplayer :: proc(camera: ^rl.Camera) {
         local_player.throttle = 0
       }
     }
+
+    if rl.IsMouseButtonPressed(.LEFT) {
+      append(&local_player.bullets, Bullet{
+        position = local_player.position,
+        velocity = local_player.velocity + local_player.forward * 1000,
+        forward = local_player.forward,
+        speed = 10,
+        model = &bullet_model
+      })
+    }
+
 }
 
 
@@ -259,7 +290,7 @@ main :: proc() {
   sekuya_font.baseSize = 30
   rl.GuiSetFont(sekuya_font)
 
-  player_model := rl.LoadModel("res/spaceship.glb")
+  player_model = rl.LoadModel("res/spaceship.glb")
   local_player = {
     model = &player_model,
     position = {0, 100, 50},
@@ -268,6 +299,8 @@ main :: proc() {
     camera_distance = 150,
     max_throttle = 100
   }
+
+  bullet_model = rl.LoadModelFromMesh(rl.GenMeshCube(10, 10, 100))
 
   planets: [dynamic]Planet
 
@@ -529,7 +562,8 @@ main :: proc() {
   rl.UnloadModel(skybox)
   rl.UnloadFont(sekuya_font)
   rl.UnloadModel(player_model)
-  rl.UnloadTexture(crosshair_texture);
+  rl.UnloadModel(bullet_model)
+  rl.UnloadTexture(crosshair_texture)
 
   rl.CloseWindow()
 }
