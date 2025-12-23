@@ -221,9 +221,9 @@ main :: proc() {
     rl.ToggleFullscreen()
   }
 
-  stars_texture := rl.LoadTexture("res/stars.png")
-  skybox := rl.LoadModelFromMesh(rl.GenMeshCube(10000, 10000, 10000))
-  skybox.materials[0].maps[rl.MaterialMapIndex.ALBEDO].texture = stars_texture
+  skybox := rl.LoadModelFromMesh(rl.GenMeshSphere(10000, 100, 100))
+  skybox.materials[0].shader = rl.LoadShader("res/shaders/sky.vs", "res/shaders/sky.fs")
+  skybox_time_loc := rl.GetShaderLocation(skybox.materials[0].shader, "time")
 
   rl.GuiLoadStyle("res/dark.rgs")
 
@@ -335,11 +335,6 @@ main :: proc() {
     rl.ClearBackground({0, 0, 0, 255})
 
     rl.BeginMode3D(camera)
-    rlgl.DisableDepthMask()
-    rlgl.DisableBackfaceCulling()
-    rl.DrawModel(skybox, camera.position, 1, {255, 255, 255, 255})
-    rlgl.EnableBackfaceCulling()
-    rlgl.EnableDepthMask()
 
     for &planet in planets {
       rl.DrawSphereWires(planet.position, planet.radius, 10, 10, planet.color)
@@ -395,6 +390,14 @@ main :: proc() {
     }
 
     update_localplayer(&camera)
+
+
+    rlgl.DisableDepthMask()
+    rlgl.DisableBackfaceCulling()
+    rl.SetShaderValue(skybox.materials[0].shader, skybox_time_loc, &gt, rl.ShaderUniformDataType.FLOAT)
+    rl.DrawModel(skybox, camera.position, 1, {255, 255, 255, 255})
+    rlgl.EnableBackfaceCulling()
+    rlgl.EnableDepthMask()
 
     rl.EndMode3D()
 
@@ -481,8 +484,8 @@ main :: proc() {
     rl.EndDrawing()
   }
 
+  rl.UnloadShader(skybox.materials[0].shader);
   rl.UnloadModel(skybox)
-  rl.UnloadTexture(stars_texture)
   rl.UnloadFont(sekuya_font)
   rl.UnloadModel(player_model)
 
