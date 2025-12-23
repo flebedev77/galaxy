@@ -28,7 +28,7 @@ Gamestate :: enum {
   GAME
 }
 
-game_state: Gamestate = .GAME
+game_state: Gamestate = .EDITOR
 
 Planet :: struct {
   is_static: bool,
@@ -71,7 +71,7 @@ simulation_speed_scalar: f32 = 1
 local_player: Player
 
 init_camera :: proc(camera: ^rl.Camera) {
-  camera.position = camera_focus_body.position + {0, 600, 0}
+  camera.position = camera_focus_body.position + {18000, 10600, 0}
   camera.target = camera_focus_body.position
   camera.up = {0, 1, 0.001}
   camera.fovy = 65
@@ -135,24 +135,30 @@ update_localplayer :: proc(camera: ^rl.Camera) {
     rl.DrawCubeWiresV(local_player.position, local_player.size, rl.RED)
     rlgl.EnableDepthMask()
 
-    speed: f32 = 100 * rl.GetFrameTime()
+    speed: rl.Vector2 = {100 * rl.GetFrameTime(), 100 * rl.GetFrameTime()}
+
+    up_divergence: f32 = rl.Vector3DotProduct(local_player.up, GLOBAL_UP)
+    if up_divergence < 0 && speed.x > 0 {
+      speed.x *= -1
+    }
+
     if rl.IsKeyDown(.W) {
-      local_player.pitch -= speed
+      local_player.pitch -= speed.y
     }
     if rl.IsKeyDown(.S) {
-      local_player.pitch += speed
+      local_player.pitch += speed.y
     }
     if rl.IsKeyDown(.A) {
-      local_player.yaw += speed
+      local_player.yaw += speed.x
     }
     if rl.IsKeyDown(.D) {
-      local_player.yaw -= speed
+      local_player.yaw -= speed.x
     }
     if rl.IsKeyDown(.Z) {
-      local_player.roll += speed
+      local_player.roll += speed.x
     }
     if rl.IsKeyDown(.X) {
-      local_player.roll -= speed
+      local_player.roll -= speed.x
     }
 
     // local_player.model.transform = rl.MatrixRotateXYZ({ rl.DEG2RAD*local_player.pitch, rl.DEG2RAD*local_player.yaw, rl.DEG2RAD*local_player.roll });
@@ -181,19 +187,19 @@ update_localplayer :: proc(camera: ^rl.Camera) {
         local_player.position - local_player.forward,
         local_player.position, local_player.up
     ))
+    local_player.position += local_player.forward * local_player.throttle
 
 
     if game_state == .GAME {
-      // camera.position = local_player.position - (local_player.forward - local_player.up*0.3) * local_player.camera_distance
-      // camera.up = local_player.up
+      camera.position = local_player.position - (local_player.forward - local_player.up*0.3) * local_player.camera_distance
+      camera.up = local_player.up
       
-      camera.position = local_player.position - (local_player.forward - GLOBAL_UP*0.3) * local_player.camera_distance
-      camera.up = GLOBAL_UP
+      // camera.position = local_player.position - (local_player.forward - GLOBAL_UP*0.3) * local_player.camera_distance
+      // camera.up = GLOBAL_UP
     } else {
       camera.up = GLOBAL_UP
     }
 
-    local_player.position += local_player.forward * local_player.throttle
 
     throttle_speed : f32 = 0.5
     if rl.IsKeyDown(.LEFT_SHIFT) {
@@ -389,7 +395,6 @@ main :: proc() {
       }
     }
 
-    update_localplayer(&camera)
 
 
     rlgl.DisableDepthMask()
@@ -399,6 +404,7 @@ main :: proc() {
     rlgl.EnableBackfaceCulling()
     rlgl.EnableDepthMask()
 
+    update_localplayer(&camera)
     rl.EndMode3D()
 
     if game_state == .EDITOR {
