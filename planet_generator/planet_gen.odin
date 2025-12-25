@@ -1,11 +1,13 @@
 package planet_generator
 import "core:fmt"
 import "core:math"
+import "core:strings"
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
 import noise "core:math/noise"
 import ini "core:encoding/ini"
-
+import "core:io"
+import "core:os"
 
 camera_zoom_factor: f32 = 350
 
@@ -30,6 +32,13 @@ noise_frequency: f32 = 1
 ambient: f32 = 0
 
 shore_margin: f32 = 0.1
+
+total_amplitude: f32 = 1
+
+export_path: string : "./res/earth"
+export_path_cstr: cstring
+WINDOW_WIDTH :: 1500
+WINDOW_HEIGHT :: 900
 
 update_camera :: proc(camera: ^rl.Camera, dt: f32) {
     rl.UpdateCamera(camera, .THIRD_PERSON)
@@ -75,8 +84,8 @@ regenerate_planet :: proc(model: ^rl.Model) {
     mag_b: f32 = 0.09
     noise_sample: noise.Vec3 = noise.Vec3{f64(norm.x * noise_sample_scale_x), f64(norm.y * noise_sample_scale_x), f64(norm.z * noise_sample_scale_x)}
     disp: f32 = noise.noise_3d_improve_xy(100, noise_sample * scl) * mag_a
-    disp += noise.noise_3d_improve_xy(200, noise_sample * scl_det) * mag_b
-    mag_a += 1
+    disp += noise.noise_3d_improve_xy(200, noise_sample * scl_det * f64(noise_sample_scale_y)) * mag_b
+    mag_a += total_amplitude
     normalized_disp := f32(math.abs(disp / (mag_a + mag_b)))
 
     mesh.texcoords2[i*2] = normalized_disp
@@ -113,8 +122,12 @@ reload_model :: proc(base: ^rl.Model) {
 }
 
 main :: proc() {
+  sb := strings.builder_make()
+  strings.write_string(&sb, export_path)
+  export_path_cstr = strings.to_cstring(&sb)
+
   rl.SetConfigFlags(rl.ConfigFlags{.MSAA_4X_HINT})
-  rl.InitWindow(1500, 900, "Planet creation tool")
+  rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Planet creation tool")
   rl.SetTargetFPS(60)
 
   rl.DisableCursor()
@@ -219,7 +232,7 @@ main :: proc() {
     }
 
     rl.GuiSlider({60, 70, 300, 20}, "Noise scale x", rl.TextFormat("%0.3f", noise_sample_scale_x), &noise_sample_scale_x, 0.01, 3)
-    rl.GuiSlider({60, 100, 300, 20}, "Noise scale y", rl.TextFormat("%0.3f", noise_sample_scale_y), &noise_sample_scale_y, 0.01, 1)
+    rl.GuiSlider({60, 100, 300, 20}, "Noise scale y", rl.TextFormat("%0.3f", noise_sample_scale_y), &noise_sample_scale_y, 0.01, 5)
 
     if rl.GuiButton({10, 130, 200, 50}, "Reset") {
       reload_model(&base)
@@ -231,10 +244,11 @@ main :: proc() {
     rl.GuiSlider({90, 550 + 15, 300, 10}, "SNOW FAC", rl.TextFormat("%0.3f", snow_factor), &snow_factor, 0, 1)
     rl.GuiSlider({90, 550 + 15 + 15, 300, 10}, "AO int", rl.TextFormat("%0.3f", ao_intensity), &ao_intensity, 0, 5)
     rl.GuiSlider({90, 550 + 15*3, 300, 10}, "AO drk", rl.TextFormat("%0.3f", ao_darkness), &ao_darkness, 0, 1)
-    rl.GuiSlider({90, 550 + 15*4, 300, 10}, "NOI int", rl.TextFormat("%0.3f", noise_intensity), &noise_intensity, 0, 1)
+    rl.GuiSlider({90, 550 + 15*4, 300, 10}, "NOI int", rl.TextFormat("%0.3f", noise_intensity), &noise_intensity, 0, 0.5)
     rl.GuiSlider({90, 550 + 15*5, 300, 10}, "NOI freq", rl.TextFormat("%0.3f", noise_frequency), &noise_frequency, 0, 5)
     rl.GuiSlider({90, 550 + 15*6, 300, 10}, "AMB", rl.TextFormat("%0.3f", ambient), &ambient, 0, 1)
     rl.GuiSlider({90, 550 + 15*7, 300, 10}, "SHORE MAR", rl.TextFormat("%0.3f", shore_margin), &shore_margin, 0, 1)
+    rl.GuiSlider({90, 550 + 15*8, 300, 10}, "TOT AMP", rl.TextFormat("%0.3f", total_amplitude), &total_amplitude, 0, 5)
 
     colorV: rl.Vector4 = {f32(color.r)/255, f32(color.g)/255, f32(color.b)/255, 1}
     rl.SetShaderValue(shader, color_loc, &colorV, .VEC4)
@@ -245,6 +259,30 @@ main :: proc() {
     rl.GuiColorPicker({10, 400, 300, 100}, "Primary color", &water_color) 
     water_colorV: rl.Vector4 = {f32(water_color.r)/255, f32(water_color.g)/255, f32(water_color.b)/255, 1}
     rl.SetShaderValue(shader, water_color_loc, &water_colorV, .VEC4)
+
+    rl.GuiTextBox({ WINDOW_WIDTH - 410, WINDOW_HEIGHT - 60 - 30, 400, 20 }, export_path_cstr, 16, false)
+    if rl.GuiButton({ 10, WINDOW_HEIGHT - 60, 200, 50 }, "EXPORT") {
+      // strings.builder_reset(&sb)
+      // strings.write_string(&sb, export_path + ".obj")
+      // strings.write_byte(&sb, 0)
+      // cstr: cstring = strings.to_cstring(&sb)
+      // fmt.printfln("EXPORT STRING %s", cstr)
+      // if !rl.ExportMesh(base.meshes[0], cstr) {
+      //   break 
+      // }
+
+      // if !export_model_glb(base.meshes[0], export_path + ".glb") {
+      //   break
+      // }
+      // config: ini.Map
+      // v: map[string]string
+      // map_insert(&v, "hi", "world")
+      // map_insert(&config, "Hi", v)
+      //
+      //
+      //
+      // ini.write_map()
+    }
     
     rl.EndDrawing()
   }

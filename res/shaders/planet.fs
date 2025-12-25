@@ -50,7 +50,7 @@ void main() {
       finalColor = mix(finalColor, water_color, 1);
     }
     if (height > snow_factor) {
-      finalColor = mix(finalColor, vec4(1, 1, 1, 1), 5*(height-snow_factor));
+      finalColor = mix(finalColor, color, 5*(height-snow_factor));
     }
     finalColor += noise*noise_intensity;
     finalColor += ambient;
