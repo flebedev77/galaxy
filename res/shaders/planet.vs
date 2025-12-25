@@ -16,6 +16,7 @@ out vec3 fragPosition;
 out vec4 fragVertColor;
 out vec3 fragNormal;
 out float height;
+out float noise;
 
 out vec2 texCoord;
 
@@ -24,6 +25,7 @@ void main() {
     fragVertColor = vertexColor;
     fragNormal = vertexNormal;
     height = heightmap.x;
+    noise = heightmap.y;
     texCoord = vertexTexCoord;
 
     gl_Position = matProjection*matView*vec4(vertexPosition, 1.0);
