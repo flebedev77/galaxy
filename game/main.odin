@@ -56,13 +56,14 @@ Player :: struct {
   size: rl.Vector3,
   forward: rl.Vector3,
   up: rl.Vector3,
+  right: rl.Vector3,
   throttle: f32,
   max_throttle: f32,
   yaw: f32,
   pitch: f32,
   roll: f32,
   camera_distance: f32,
-  bullets: [dynamic]Bullet
+  bullets: [dynamic]Bullet,
 }
 
 
@@ -102,6 +103,10 @@ update_camera_third_person :: proc(camera: ^rl.Camera) {
 }
 
 update_camera :: proc(camera: ^rl.Camera, dt_warped: f32) {
+    if game_state != .EDITOR {
+      return
+    }
+
     // rl.UpdateCamera(camera, .THIRD_PERSON)
     update_camera_third_person(camera);
     dt := dt_warped * (1 / simulation_speed_scalar)
@@ -212,8 +217,11 @@ update_localplayer :: proc(camera: ^rl.Camera) {
     }
     local_player.up = rl.Vector3RotateByAxisAngle(local_player.up, local_player.forward, local_player.roll*rl.DEG2RAD)
 
+    local_player.right = -rl.Vector3CrossProduct(local_player.up, local_player.forward)
+
     // rl.DrawLine3D(local_player.position, local_player.position + local_player.forward * 150, rl.GREEN)
     // rl.DrawLine3D(local_player.position, local_player.position + local_player.up * 150, rl.ORANGE)
+    rl.DrawLine3D(local_player.position, local_player.position + local_player.right * 150, rl.ORANGE)
 
     local_player.model.transform = model_lookat(
       local_player.position,
@@ -251,9 +259,11 @@ update_localplayer :: proc(camera: ^rl.Camera) {
       }
     }
 
-    if rl.IsMouseButtonPressed(.LEFT) {
+    if rl.IsMouseButtonDown(.LEFT) {
+      x: f32 = (len(local_player.bullets) % 2 == 1) ? -1 : 1
+      x *= local_player.size.z/2
       append(&local_player.bullets, Bullet{
-        position = local_player.position,
+        position = local_player.position + local_player.right * x,
         velocity = local_player.velocity + local_player.forward * 1000,
         forward = local_player.forward,
         speed = 10,
@@ -261,6 +271,10 @@ update_localplayer :: proc(camera: ^rl.Camera) {
       })
     }
 
+}
+
+free_localplayer :: proc() {
+  delete(local_player.bullets)
 }
 
 
@@ -280,7 +294,7 @@ main :: proc() {
   crosshair_texture := rl.LoadTextureFromImage(crosshair_image);
   rl.UnloadImage(crosshair_image);
 
-  skybox := rl.LoadModelFromMesh(rl.GenMeshSphere(10000, 100, 100))
+  skybox := rl.LoadModelFromMesh(rl.GenMeshSphere(10000, 10, 10))
   skybox.materials[0].shader = rl.LoadShader("res/shaders/sky.vs", "res/shaders/sky.fs")
   skybox_time_loc := rl.GetShaderLocation(skybox.materials[0].shader, "time")
 
@@ -564,6 +578,8 @@ main :: proc() {
   rl.UnloadModel(player_model)
   rl.UnloadModel(bullet_model)
   rl.UnloadTexture(crosshair_texture)
+
+  free_localplayer()
 
   rl.CloseWindow()
 }
