@@ -35,7 +35,9 @@ PlanetSettings :: struct {
   ao_intensity: f32,
   ao_darkness: f32,
   ambient: f32,
-  shore_margin: f32
+  shore_margin: f32,
+  seed_a: f32,
+  seed_b: f32
 }
 
 regenerate_planet :: proc(model: ^PlanetModel) {
@@ -75,8 +77,8 @@ regenerate_planet :: proc(model: ^PlanetModel) {
       f64(norm.y * settings.noise_sample_scale_x),
       f64(norm.z * settings.noise_sample_scale_x)
     }
-    disp: f32 = noise.noise_3d_improve_xy(100, noise_sample * scl) * mag_a
-    disp += noise.noise_3d_improve_xy(200, noise_sample * scl_det * f64(settings.noise_sample_scale_y)) * mag_b
+    disp: f32 = noise.noise_3d_improve_xy(i64(settings.seed_a), noise_sample * scl) * mag_a
+    disp += noise.noise_3d_improve_xy(i64(settings.seed_b), noise_sample * scl_det * f64(settings.noise_sample_scale_y)) * mag_b
     mag_a += settings.total_amplitude
     normalized_disp := f32(math.abs(disp / (mag_a + mag_b)))
 

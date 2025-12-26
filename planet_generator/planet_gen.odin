@@ -6,7 +6,6 @@ import "core:strconv"
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
 import ini "core:encoding/ini"
-import csv "core:encoding/csv"
 import "core:io"
 import "core:os"
 import "core:mem"
@@ -38,6 +37,9 @@ ambient: f32 = 0
 shore_margin: f32 = 0.1
 
 total_amplitude: f32 = 1
+
+seed_a: f32 = 100
+seed_b: f32 = 200
 
 export_path: string : "./res/earth"
 export_path_cstr: cstring
@@ -79,6 +81,8 @@ export_ini :: proc() {
   map_insert(&v, "noise_sample_scale_x", float_to_string(noise_sample_scale_x))
   map_insert(&v, "noise_sample_scale_y", float_to_string(noise_sample_scale_y))
   map_insert(&v, "total_amplitude", float_to_string(total_amplitude))
+  map_insert(&v, "seed_a", float_to_string(seed_a))
+  map_insert(&v, "seed_b", float_to_string(seed_b))
 
   map_insert(&water_color_map, "r", u8str(water_color.r))
   map_insert(&water_color_map, "g", u8str(water_color.g))
@@ -93,9 +97,57 @@ export_ini :: proc() {
   map_insert(&config, "SnowColor", snow_color)
 
   out: string = ini.save_map_to_string(config, context.allocator)
-  os.write_entire_file("./res/planet.ini", transmute([]u8)out[:])
+  os.write_entire_file("res/planet.ini", transmute([]u8)out[:])
 
   free_all(context.temp_allocator)
+}
+
+import_ini :: proc(filepath: string) {
+  ini_file, err, ok := ini.load_map_from_path(filepath, context.allocator)
+  
+  for key, value in ini_file {
+    switch key {
+      case "Settings":
+        for k, v in value {
+          // fmt.printfln("%s %s", k, v)
+          parsed_value, ok := strconv.parse_f32(v)
+          if !ok { fmt.panicf("ERROR parsing ini %s %s:%s", filepath, key, k) }
+          switch k {
+          case "noise_sample_scale_y": noise_sample_scale_y = parsed_value; break
+          case "total_amplitude": total_amplitude = parsed_value; break
+          case "ao_darkness": ao_darkness = parsed_value; break
+          case "sea_level": sea_level = parsed_value; break
+          case "snow_factor": snow_factor = parsed_value; break
+          case "noise_sample_scale_x": noise_sample_scale_x = parsed_value; break
+          case "ao_intensity": ao_intensity = parsed_value; break
+          case "color_weight": color_weight = parsed_value; break
+          case "shore_margin": shore_margin = parsed_value; break
+          case "ambient": ambient = parsed_value; break
+          case "noise_intensity": noise_intensity = parsed_value; break
+          }
+        }
+        break
+      case "SnowColor":
+        for k, v in value {
+          parsed_value, ok := strconv.parse_int(v)
+          if !ok { fmt.panicf("ERROR parsing ini %s %s", filepath, key) }
+          if k == "r" { color.r = u8(parsed_value) }
+          else if k == "g" { color.g = u8(parsed_value) }
+          else if k == "b" { color.b = u8(parsed_value) }
+        }
+        break
+
+      case "WaterColor":
+        for k, v in value {
+          parsed_value, ok := strconv.parse_int(v)
+          if !ok { fmt.panicf("ERROR parsing ini %s %s", filepath, key) }
+          if k == "r" { water_color.r = u8(parsed_value) }
+          else if k == "g" { water_color.g = u8(parsed_value) }
+          else if k == "b" { water_color.b = u8(parsed_value) }
+        }
+        break
+    }
+  }
 }
 
 main :: proc() {
@@ -126,15 +178,13 @@ main :: proc() {
   sekuya_font.baseSize = 30
   rl.GuiSetFont(sekuya_font)
 
+  import_ini("res/planet.ini")
   sett: planet.PlanetSettings
   planet_obj := planet.PlanetModel {}
   package_settings(&planet_obj)
   planet.regenerate_planet(&planet_obj)
 
   for !rl.WindowShouldClose() {
-    // if 1==1 {
-    //   break
-    // }
     dt: f32 = rl.GetFrameTime()
     gt: f32 = f32(rl.GetTime())
     mouse_pos: rl.Vector2 = rl.GetMousePosition()
@@ -189,16 +239,18 @@ main :: proc() {
     }
 
     rl.GuiColorPicker({10, 200, 300, 100}, "Primary color", &color) 
-    rl.GuiSlider({90, 320, 300, 20}, "Primary color weight", rl.TextFormat("%0.3f", color_weight), &color_weight, 0, 1)
-    rl.GuiSlider({90, 550, 300, 10}, "SEA LVL", rl.TextFormat("%0.3f", sea_level), &sea_level, 0, 1)
-    rl.GuiSlider({90, 550 + 15, 300, 10}, "SNOW FAC", rl.TextFormat("%0.3f", snow_factor), &snow_factor, 0, 1)
-    rl.GuiSlider({90, 550 + 15 + 15, 300, 10}, "AO int", rl.TextFormat("%0.3f", ao_intensity), &ao_intensity, 0, 5)
-    rl.GuiSlider({90, 550 + 15*3, 300, 10}, "AO drk", rl.TextFormat("%0.3f", ao_darkness), &ao_darkness, 0, 1)
-    rl.GuiSlider({90, 550 + 15*4, 300, 10}, "NOI int", rl.TextFormat("%0.3f", noise_intensity), &noise_intensity, 0, 0.5)
-    rl.GuiSlider({90, 550 + 15*5, 300, 10}, "NOI freq", rl.TextFormat("%0.3f", noise_frequency), &noise_frequency, 0, 5)
-    rl.GuiSlider({90, 550 + 15*6, 300, 10}, "AMB", rl.TextFormat("%0.3f", ambient), &ambient, 0, 1)
-    rl.GuiSlider({90, 550 + 15*7, 300, 10}, "SHORE MAR", rl.TextFormat("%0.3f", shore_margin), &shore_margin, 0, 1)
-    rl.GuiSlider({90, 550 + 15*8, 300, 10}, "TOT AMP", rl.TextFormat("%0.3f", total_amplitude), &total_amplitude, 0, 5)
+    rl.GuiSlider({120, 320, 300, 20}, "Primary color weight", rl.TextFormat("%0.3f", color_weight), &color_weight, 0, 1)
+    rl.GuiSlider({120, 550, 300, 10}, "SEA LVL", rl.TextFormat("%0.3f", sea_level), &sea_level, 0, 1)
+    rl.GuiSlider({120, 550 + 15, 300, 10}, "SNOW FAC", rl.TextFormat("%0.3f", snow_factor), &snow_factor, 0, 1)
+    rl.GuiSlider({120, 550 + 15 + 15, 300, 10}, "AO int", rl.TextFormat("%0.3f", ao_intensity), &ao_intensity, 0, 5)
+    rl.GuiSlider({120, 550 + 15*3, 300, 10}, "AO drk", rl.TextFormat("%0.3f", ao_darkness), &ao_darkness, 0, 1)
+    rl.GuiSlider({120, 550 + 15*4, 300, 10}, "NOI int", rl.TextFormat("%0.3f", noise_intensity), &noise_intensity, 0, 0.5)
+    rl.GuiSlider({120, 550 + 15*5, 300, 10}, "NOI freq", rl.TextFormat("%0.3f", noise_frequency), &noise_frequency, 0, 5)
+    rl.GuiSlider({120, 550 + 15*6, 300, 10}, "AMB", rl.TextFormat("%0.3f", ambient), &ambient, 0, 1)
+    rl.GuiSlider({120, 550 + 15*7, 300, 10}, "SHORE MAR", rl.TextFormat("%0.3f", shore_margin), &shore_margin, 0, 1)
+    rl.GuiSlider({120, 550 + 15*8, 300, 10}, "TOT AMP", rl.TextFormat("%0.3f", total_amplitude), &total_amplitude, 0, 5)
+    rl.GuiSlider({120, 560 + 15*9, 300, 10}, "SEEDA", rl.TextFormat("%0.3f", seed_a), &seed_a, 0, 100)
+    rl.GuiSlider({120, 560 + 15*10, 300, 10}, "SEEDB", rl.TextFormat("%0.3f", seed_b), &seed_b, 0, 200)
 
     shader := planet_obj.model.materials[0].shader
     colorV: rl.Vector4 = {f32(color.r)/255, f32(color.g)/255, f32(color.b)/255, 1}
@@ -214,18 +266,6 @@ main :: proc() {
 
     rl.GuiTextBox({ WINDOW_WIDTH - 410, WINDOW_HEIGHT - 60 - 30, 400, 20 }, export_path_cstr, 16, false)
     if rl.GuiButton({ 10, WINDOW_HEIGHT - 60, 200, 50 }, "EXPORT") {
-      // strings.builder_reset(&sb)
-      // strings.write_string(&sb, export_path + ".obj")
-      // strings.write_byte(&sb, 0)
-      // cstr: cstring = strings.to_cstring(&sb)
-      // fmt.printfln("EXPORT STRING %s", cstr)
-      // if !rl.ExportMesh(base.meshes[0], cstr) {
-      //   break 
-      // }
-
-      // if !export_model_glb(base.meshes[0], export_path + ".glb") {
-      //   break
-      // }
       export_ini()
     }
     
@@ -264,4 +304,6 @@ package_settings :: proc(set: ^planet.PlanetModel) {
   set.settings.ao_darkness = ao_darkness
   set.settings.ambient = ambient
   set.settings.shore_margin = shore_margin
+  set.settings.seed_a = seed_a
+  set.settings.seed_b = seed_b
 }
