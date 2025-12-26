@@ -2,12 +2,15 @@ package planet_generator
 import "core:fmt"
 import "core:math"
 import "core:strings"
+import "core:strconv"
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
 import noise "core:math/noise"
 import ini "core:encoding/ini"
+import csv "core:encoding/csv"
 import "core:io"
 import "core:os"
+import "core:mem"
 
 camera_zoom_factor: f32 = 350
 
@@ -121,6 +124,48 @@ reload_model :: proc(base: ^rl.Model) {
   base.materials[0].shader = shader
 }
 
+export_ini :: proc() {
+  fmt.printf("EXPORTING")
+  config: ini.Map
+  v: map[string]string
+  water_color_map: map[string]string
+  snow_color: map[string]string
+
+  defer delete(config)
+  defer delete(v)
+  defer delete(water_color_map)
+  defer delete(snow_color)
+
+  map_insert(&v, "sea_level", float_to_string(sea_level))
+  map_insert(&v, "snow_factor", float_to_string(snow_factor))
+  map_insert(&v, "ao_intensity", float_to_string(ao_intensity))
+  map_insert(&v, "noise_intensity", float_to_string(noise_intensity))
+  map_insert(&v, "ao_darkness", float_to_string(ao_darkness))
+  map_insert(&v, "ambient", float_to_string(ambient))
+  map_insert(&v, "shore_margin", float_to_string(shore_margin))
+  map_insert(&v, "color_weight", float_to_string(color_weight))
+  map_insert(&v, "noise_sample_scale_x", float_to_string(noise_sample_scale_x))
+  map_insert(&v, "noise_sample_scale_y", float_to_string(noise_sample_scale_y))
+  map_insert(&v, "total_amplitude", float_to_string(total_amplitude))
+
+  map_insert(&water_color_map, "r", u8str(water_color.r))
+  map_insert(&water_color_map, "g", u8str(water_color.g))
+  map_insert(&water_color_map, "b", u8str(water_color.b))
+
+  map_insert(&snow_color, "r", u8str(color.r))
+  map_insert(&snow_color, "g", u8str(color.g))
+  map_insert(&snow_color, "b", u8str(color.b))
+
+  map_insert(&config, "Settings", v)
+  map_insert(&config, "WaterColor", water_color_map)
+  map_insert(&config, "SnowColor", snow_color)
+
+  out: string = ini.save_map_to_string(config, context.allocator)
+  os.write_entire_file("./res/planet.ini", transmute([]u8)out[:])
+
+  free_all(context.temp_allocator)
+}
+
 main :: proc() {
   sb := strings.builder_make()
   strings.write_string(&sb, export_path)
@@ -178,7 +223,12 @@ main :: proc() {
   water_color_loc := rl.GetShaderLocation(shader, "water_color")
 
   regenerate_planet(&base)
+
+  export_ini()
   for !rl.WindowShouldClose() {
+    // if 1==1 {
+    //   break
+    // }
     dt: f32 = rl.GetFrameTime()
     gt: f32 = f32(rl.GetTime())
     mouse_pos: rl.Vector2 = rl.GetMousePosition()
@@ -274,14 +324,7 @@ main :: proc() {
       // if !export_model_glb(base.meshes[0], export_path + ".glb") {
       //   break
       // }
-      // config: ini.Map
-      // v: map[string]string
-      // map_insert(&v, "hi", "world")
-      // map_insert(&config, "Hi", v)
-      //
-      //
-      //
-      // ini.write_map()
+      export_ini()
     }
     
     rl.EndDrawing()
@@ -300,4 +343,13 @@ main :: proc() {
 
   rl.UnloadModel(base)
   rl.CloseWindow()
+}
+
+float_to_string :: proc(val: f32, allocator := context.temp_allocator) -> string {
+  buf, err := mem.alloc_bytes(100, mem.DEFAULT_ALIGNMENT, allocator)
+  return strconv.write_float(buf[:], f64(val), 'f', 5, 64)
+}
+u8str :: proc(val: u8, allocator := context.temp_allocator) -> string {
+  buf, err := mem.alloc_bytes(100, mem.DEFAULT_ALIGNMENT, allocator)
+  return strconv.write_int(buf[:], i64(val), 10)
 }
