@@ -10,6 +10,7 @@ layout(location = 5) in vec2 heightmap;
 // Input uniform values
 uniform mat4 matProjection;
 uniform mat4 matView;
+uniform mat4 matModel;
 
 // Output vertex attributes (to fragment shader)
 out vec3 fragPosition;
@@ -28,5 +29,5 @@ void main() {
     noise = heightmap.y;
     texCoord = vertexTexCoord;
 
-    gl_Position = matProjection*matView*vec4(vertexPosition, 1.0);
+    gl_Position = matProjection*matView*matModel*vec4(vertexPosition, 1.0);
 }

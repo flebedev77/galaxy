@@ -1,0 +1,150 @@
+package game
+import "core:math"
+import rl "vendor:raylib"
+
+
+Player :: struct {
+  model: ^rl.Model,
+  position: rl.Vector3,
+  velocity: rl.Vector3,
+  size: rl.Vector3,
+  forward: rl.Vector3,
+  up: rl.Vector3,
+  right: rl.Vector3,
+  throttle: f32,
+  max_throttle: f32,
+  yaw: f32,
+  pitch: f32,
+  roll: f32,
+  camera_distance: f32,
+  bullets: [dynamic]Bullet,
+}
+
+update_localplayer :: proc(camera: ^rl.Camera) {
+    frame_delta: f32 = rl.GetFrameTime()
+
+    // rl.DrawModel(local_player.model^, local_player.position, 0.38, rl.WHITE)
+    rl.DrawModel(local_player.model^, local_player.position, local_player.size.y*0.02, rl.WHITE)
+
+    for &bullet in local_player.bullets {
+      bullet.model.transform = model_lookat(
+        bullet.position,
+        bullet.position + bullet.forward,
+        GLOBAL_UP
+      )
+
+      rl.DrawModel(bullet.model^, bullet.position, 1, rl.YELLOW)
+
+      bullet.position += bullet.velocity * frame_delta
+    }
+
+    if game_state == .EDITOR {
+      return
+    }
+    // rlgl.DisableDepthMask()
+    rl.DrawCubeWiresV(local_player.position, local_player.size, rl.RED)
+    // rlgl.EnableDepthMask()
+
+    speed_mag: f32 = 20//100
+    speed: rl.Vector2 = {speed_mag * frame_delta, speed_mag * frame_delta}
+
+    up_divergence: f32 = rl.Vector3DotProduct(local_player.up, GLOBAL_UP)
+    if up_divergence < 0 && speed.x > 0 {
+      speed.x *= -1
+    }
+
+    mouse_delta: rl.Vector2 = rl.GetMouseDelta()// - screen_size/2;
+
+    local_player.pitch -= mouse_delta.y * speed.y;
+    local_player.yaw -= mouse_delta.x * speed.x;
+
+    // if rl.IsKeyDown(.W) {
+    //   local_player.pitch -= speed.y
+    // }
+    // if rl.IsKeyDown(.S) {
+    //   local_player.pitch += speed.y
+    // }
+    // if rl.IsKeyDown(.A) {
+    //   local_player.yaw += speed.x
+    // }
+    // if rl.IsKeyDown(.D) {
+    //   local_player.yaw -= speed.x
+    // }
+    // if rl.IsKeyDown(.Z) {
+    //   local_player.roll += speed.x
+    // }
+    // if rl.IsKeyDown(.X) {
+    //   local_player.roll -= speed.x
+    // }
+
+    local_player.forward = {
+      math.cos_f32(local_player.pitch*rl.DEG2RAD) * math.sin_f32(local_player.yaw*rl.DEG2RAD),
+      math.sin_f32(local_player.pitch*rl.DEG2RAD),
+      math.cos_f32(local_player.pitch*rl.DEG2RAD) * math.cos_f32(local_player.yaw*rl.DEG2RAD),
+    }
+    local_player.up = {
+      math.cos_f32((local_player.pitch+90)*rl.DEG2RAD) * math.sin_f32(local_player.yaw*rl.DEG2RAD),
+      math.sin_f32((local_player.pitch+90)*rl.DEG2RAD),
+      math.cos_f32((local_player.pitch+90)*rl.DEG2RAD) * math.cos_f32(local_player.yaw*rl.DEG2RAD),
+    }
+    local_player.up = rl.Vector3RotateByAxisAngle(local_player.up, local_player.forward, local_player.roll*rl.DEG2RAD)
+
+    local_player.right = -rl.Vector3CrossProduct(local_player.up, local_player.forward)
+
+    // rl.DrawLine3D(local_player.position, local_player.position + local_player.forward * 150, rl.GREEN)
+    // rl.DrawLine3D(local_player.position, local_player.position + local_player.up * 150, rl.ORANGE)
+    rl.DrawLine3D(local_player.position, local_player.position + local_player.right * 150, rl.ORANGE)
+
+    local_player.model.transform = model_lookat(
+      local_player.position,
+      local_player.position + local_player.forward,
+      local_player.up
+    )
+    local_player.velocity *= 0.1 * frame_delta
+    local_player.velocity += local_player.forward * local_player.throttle * 100
+    local_player.position += local_player.velocity * frame_delta
+
+
+    if game_state == .GAME {
+      camera.position = local_player.position - (local_player.forward - local_player.up*0.3) * local_player.camera_distance
+      camera.up = local_player.up
+      camera.target = local_player.position + local_player.up * local_player.camera_distance * 0.3;
+      
+      // camera.position = local_player.position - (local_player.forward - GLOBAL_UP*0.3) * local_player.camera_distance
+      // camera.up = GLOBAL_UP
+    } else {
+      camera.up = GLOBAL_UP
+    }
+
+
+    throttle_speed : f32 = local_player.max_throttle/100
+    if rl.IsKeyDown(.W) {
+      local_player.throttle += throttle_speed
+      if local_player.throttle > local_player.max_throttle {
+        local_player.throttle = local_player.max_throttle
+      }
+    }
+    if rl.IsKeyDown(.S) {
+      local_player.throttle -= throttle_speed
+      if local_player.throttle < 0 {
+        local_player.throttle = 0
+      }
+    }
+
+    if rl.IsMouseButtonDown(.LEFT) {
+      x: f32 = (len(local_player.bullets) % 2 == 1) ? -1 : 1
+      x *= local_player.size.z/2
+      append(&local_player.bullets, Bullet{
+        position = local_player.position + local_player.right * x,
+        velocity = local_player.velocity + local_player.forward * 1000,
+        forward = local_player.forward,
+        speed = 0.1,
+        model = &bullet_model
+      })
+    }
+
+}
+
+free_localplayer :: proc() {
+  delete(local_player.bullets)
+}

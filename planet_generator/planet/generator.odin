@@ -1,7 +1,9 @@
 package planet
 import "core:fmt"
 import "core:math"
+import "core:strconv"
 import noise "core:math/noise"
+import ini "core:encoding/ini"
 import rl "vendor:raylib"
 
 PlanetModel :: struct {
@@ -34,10 +36,13 @@ PlanetSettings :: struct {
   snow_factor: f32,
   ao_intensity: f32,
   ao_darkness: f32,
+  ao_weight: f32,
   ambient: f32,
   shore_margin: f32,
   seed_a: f32,
-  seed_b: f32
+  seed_b: f32,
+  snow_color: rl.Color,
+  water_color: rl.Color,
 }
 
 regenerate_planet :: proc(model: ^PlanetModel) {
@@ -165,4 +170,58 @@ unload_planet :: proc(planet: PlanetModel) {
   rl.UnloadTexture(planet.model.materials[0].maps[rl.MaterialMapIndex.NORMAL].texture)
   rl.UnloadShader(planet.model.materials[0].shader)
   rl.UnloadModel(planet.model)
+}
+
+
+settings_from_ini :: proc(filepath: string) -> PlanetSettings {
+  ini_file, err, ok := ini.load_map_from_path(filepath, context.allocator)
+
+  out := PlanetSettings{}
+  out.has_oceans = true
+  
+  for key, value in ini_file {
+    switch key {
+      case "Settings":
+        for k, v in value {
+          // fmt.printfln("%s %s", k, v)
+          parsed_value, ok := strconv.parse_f32(v)
+          if !ok { fmt.panicf("ERROR parsing ini %s %s:%s", filepath, key, k) }
+          switch k {
+          case "noise_sample_scale_y": out.noise_sample_scale_y = parsed_value; break
+          case "total_amplitude": out.total_amplitude = parsed_value; break
+          case "ao_darkness": out.ao_darkness = parsed_value; break
+          case "sea_level": out.sea_level = parsed_value; break
+          case "snow_factor": out.snow_factor = parsed_value; break
+          case "noise_sample_scale_x": out.noise_sample_scale_x = parsed_value; break
+          case "ao_intensity": out.ao_intensity = parsed_value; break
+          case "color_weight": out.ao_weight = parsed_value; break
+          case "shore_margin": out.shore_margin = parsed_value; break
+          case "ambient": out.ambient = parsed_value; break
+          case "noise_intensity": out.noise_intensity = parsed_value; break
+          }
+        }
+        break
+      case "SnowColor":
+        for k, v in value {
+          parsed_value, ok := strconv.parse_int(v)
+          if !ok { fmt.panicf("ERROR parsing ini %s %s", filepath, key) }
+          if k == "r" { out.snow_color.r = u8(parsed_value) }
+          else if k == "g" { out.snow_color.g = u8(parsed_value) }
+          else if k == "b" { out.snow_color.b = u8(parsed_value) }
+        }
+        break
+
+      case "WaterColor":
+        for k, v in value {
+          parsed_value, ok := strconv.parse_int(v)
+          if !ok { fmt.panicf("ERROR parsing ini %s %s", filepath, key) }
+          if k == "r" { out.water_color.r = u8(parsed_value) }
+          else if k == "g" { out.water_color.g = u8(parsed_value) }
+          else if k == "b" { out.water_color.b = u8(parsed_value) }
+        }
+        break
+    }
+  }
+
+  return out
 }
