@@ -5,12 +5,13 @@ import "core:strings"
 import "core:strconv"
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
-import noise "core:math/noise"
 import ini "core:encoding/ini"
 import csv "core:encoding/csv"
 import "core:io"
 import "core:os"
 import "core:mem"
+
+import "planet"
 
 camera_zoom_factor: f32 = 350
 
@@ -54,75 +55,6 @@ update_camera :: proc(camera: ^rl.Camera, dt: f32) {
 }
 
 mouse_enabled: bool = false
-
-regenerate_planet :: proc(model: ^rl.Model) {
-  reload_model(model)
-  fmt.printf("Number of meshes %i \n", model.meshCount)
-  if model.meshCount < 1 {
-    fmt.println("ERROR modifying a model with no mesh")
-    return
-  }
-
-  mesh: rl.Mesh = model.meshes[0]
-
-  for i in 0..<mesh.vertexCount {
-    x: f32 = mesh.vertices[i*3]
-    y: f32 = mesh.vertices[i*3+1]
-    z: f32 = mesh.vertices[i*3+2]
-
-    leng: f32 = rl.Vector3Length({x, y, z})
-    norm: rl.Vector3 = {x, y, z} / leng
-
-    theta: f32 = math.atan2(norm.y, norm.x)
-
-    phi: f32 = math.acos(norm.z / leng)
-
-    theta = theta * noise_sample_scale_x
-    phi = phi * noise_sample_scale_y
-
-    scl: f64 = 0.5
-    scl_det: f64 = 4
-
-    mag_a: f32 = 0.8
-    mag_b: f32 = 0.09
-    noise_sample: noise.Vec3 = noise.Vec3{f64(norm.x * noise_sample_scale_x), f64(norm.y * noise_sample_scale_x), f64(norm.z * noise_sample_scale_x)}
-    disp: f32 = noise.noise_3d_improve_xy(100, noise_sample * scl) * mag_a
-    disp += noise.noise_3d_improve_xy(200, noise_sample * scl_det * f64(noise_sample_scale_y)) * mag_b
-    mag_a += total_amplitude
-    normalized_disp := f32(math.abs(disp / (mag_a + mag_b)))
-
-    mesh.texcoords2[i*2] = normalized_disp
-    mesh.texcoords2[i*2+1] = noise.noise_3d_improve_xy(300, noise_sample*f64(noise_frequency))
-
-    if normalized_disp < sea_level && oceans {
-      normalized_disp = sea_level
-    }
-
-    leng += normalized_disp
-    final: rl.Vector3 = norm * leng
-    mesh.vertices[i*3]   = final.x
-    mesh.vertices[i*3+1] = final.y
-    mesh.vertices[i*3+2] = final.z
-
-  }
-
-  rl.UpdateMeshBuffer(mesh, 0, mesh.vertices, mesh.vertexCount * size_of(f32) * 3, 0)
-  rl.UpdateMeshBuffer(mesh, 5, mesh.texcoords2, mesh.vertexCount * size_of(f32) * 2, 0)
-}
-
-reload_model :: proc(base: ^rl.Model) {
-  albedo := base.materials[0].maps[rl.MaterialMapIndex.ALBEDO].texture
-  normal := base.materials[0].maps[rl.MaterialMapIndex.NORMAL].texture
-  shader := base.materials[0].shader
-
-  rl.UnloadModel(base^)
-
-  base^ = rl.LoadModel("res/base.glb")
-
-  base.materials[0].maps[rl.MaterialMapIndex.ALBEDO].texture = albedo
-  base.materials[0].maps[rl.MaterialMapIndex.NORMAL].texture = normal
-  base.materials[0].shader = shader
-}
 
 export_ini :: proc() {
   fmt.printf("EXPORTING")
@@ -194,37 +126,11 @@ main :: proc() {
   sekuya_font.baseSize = 30
   rl.GuiSetFont(sekuya_font)
 
-  base: rl.Model = rl.LoadModel("res/base.glb")
+  sett: planet.PlanetSettings
+  planet_obj := planet.PlanetModel {}
+  package_settings(&planet_obj)
+  planet.regenerate_planet(&planet_obj)
 
-  dirt_img: rl.Image = rl.LoadImage("res/stone.png")
-  dirt_tex: rl.Texture2D = rl.LoadTextureFromImage(dirt_img)
-
-  dirtnormal_img: rl.Image = rl.LoadImage("res/grass.png")
-  dirtnormal_tex: rl.Texture2D = rl.LoadTextureFromImage(dirtnormal_img)
-
-  shader: rl.Shader = rl.LoadShader("res/shaders/planet.vs", "res/shaders/planet.fs")
-  base.materials[0].maps[rl.MaterialMapIndex.NORMAL].texture = dirtnormal_tex
-  base.materials[0].maps[rl.MaterialMapIndex.ALBEDO].texture = dirt_tex
-  base.materials[0].shader = shader
-  shader.locs[rl.ShaderLocationIndex.MAP_NORMAL] = rl.GetShaderLocation(shader, "normalMap")
-
-  sealevel_loc := rl.GetShaderLocation(shader, "sea_level")
-  shore_margin_loc := rl.GetShaderLocation(shader, "shore_margin")
-  snow_factor_loc := rl.GetShaderLocation(shader, "snow_factor")
-
-  ao_intensity_loc := rl.GetShaderLocation(shader, "ao_intensity")
-  ao_darkness_loc := rl.GetShaderLocation(shader, "ao_darkness")
-  noise_intensity_loc := rl.GetShaderLocation(shader, "noise_intensity")
-
-  ambient_loc := rl.GetShaderLocation(shader, "ambient");
-
-  color_loc := rl.GetShaderLocation(shader, "color")
-  color_weight_loc := rl.GetShaderLocation(shader, "color_weight")
-  water_color_loc := rl.GetShaderLocation(shader, "water_color")
-
-  regenerate_planet(&base)
-
-  export_ini()
   for !rl.WindowShouldClose() {
     // if 1==1 {
     //   break
@@ -264,28 +170,22 @@ main :: proc() {
     rl.DrawModel(skybox, camera.position, 1, {255, 255, 255, 255})
     // rlgl.EnableBackfaceCulling()
     rlgl.EnableDepthMask()
-
-    rl.SetShaderValue(shader, sealevel_loc, &sea_level, .FLOAT)
-    rl.SetShaderValue(shader, snow_factor_loc, &snow_factor, .FLOAT)
-    rl.SetShaderValue(shader, ao_intensity_loc, &ao_intensity, .FLOAT)
-    rl.SetShaderValue(shader, noise_intensity_loc, &noise_intensity, .FLOAT)
-    rl.SetShaderValue(shader, ao_darkness_loc, &ao_darkness, .FLOAT)
-    rl.SetShaderValue(shader, ambient_loc, &ambient, .FLOAT)
-    rl.SetShaderValue(shader, shore_margin_loc, &shore_margin, .FLOAT)
-    rl.DrawModel(base, {0, 0, 0}, 1, {255, 255, 255, 255})
+  
+    package_settings(&planet_obj)
+    planet.render_planet(&planet_obj)
 
     rl.EndMode3D()
 
 
     if rl.GuiButton({10, 10, 200, 50}, "Randomize") || rl.IsKeyPressed(.SPACE) {
-      regenerate_planet(&base)
+      planet.regenerate_planet(&planet_obj)
     }
 
     rl.GuiSlider({60, 70, 300, 20}, "Noise scale x", rl.TextFormat("%0.3f", noise_sample_scale_x), &noise_sample_scale_x, 0.01, 3)
     rl.GuiSlider({60, 100, 300, 20}, "Noise scale y", rl.TextFormat("%0.3f", noise_sample_scale_y), &noise_sample_scale_y, 0.01, 5)
 
     if rl.GuiButton({10, 130, 200, 50}, "Reset") {
-      reload_model(&base)
+      planet.reload_model(&planet_obj)
     }
 
     rl.GuiColorPicker({10, 200, 300, 100}, "Primary color", &color) 
@@ -300,15 +200,17 @@ main :: proc() {
     rl.GuiSlider({90, 550 + 15*7, 300, 10}, "SHORE MAR", rl.TextFormat("%0.3f", shore_margin), &shore_margin, 0, 1)
     rl.GuiSlider({90, 550 + 15*8, 300, 10}, "TOT AMP", rl.TextFormat("%0.3f", total_amplitude), &total_amplitude, 0, 5)
 
+    shader := planet_obj.model.materials[0].shader
     colorV: rl.Vector4 = {f32(color.r)/255, f32(color.g)/255, f32(color.b)/255, 1}
-    rl.SetShaderValue(shader, color_loc, &colorV, .VEC4)
-    rl.SetShaderValue(shader, color_weight_loc, &color_weight, .FLOAT)
+    rl.SetShaderValue(shader, planet_obj.shader_locs.color, &colorV, .VEC4)
+    rl.SetShaderValue(shader, planet_obj.shader_locs.color_weight, &color_weight, .FLOAT)
 
     rl.GuiCheckBox({60, 360, 100, 20}, "Oceans", &oceans)
 
     rl.GuiColorPicker({10, 400, 300, 100}, "Primary color", &water_color) 
     water_colorV: rl.Vector4 = {f32(water_color.r)/255, f32(water_color.g)/255, f32(water_color.b)/255, 1}
-    rl.SetShaderValue(shader, water_color_loc, &water_colorV, .VEC4)
+    rl.SetShaderValue(shader, planet_obj.shader_locs.water_color, &water_colorV, .VEC4)
+
 
     rl.GuiTextBox({ WINDOW_WIDTH - 410, WINDOW_HEIGHT - 60 - 30, 400, 20 }, export_path_cstr, 16, false)
     if rl.GuiButton({ 10, WINDOW_HEIGHT - 60, 200, 50 }, "EXPORT") {
@@ -330,18 +232,13 @@ main :: proc() {
     rl.EndDrawing()
   }
 
-  rl.UnloadImage(dirt_img)
-  rl.UnloadTexture(dirt_tex)
-  rl.UnloadImage(dirtnormal_img)
-  rl.UnloadTexture(dirtnormal_tex)
-  rl.UnloadShader(shader)
+  planet.unload_planet(planet_obj)
   rl.UnloadFont(sekuya_font)
 
 
   rl.UnloadShader(skybox.materials[0].shader);
   rl.UnloadModel(skybox)
 
-  rl.UnloadModel(base)
   rl.CloseWindow()
 }
 
@@ -352,4 +249,19 @@ float_to_string :: proc(val: f32, allocator := context.temp_allocator) -> string
 u8str :: proc(val: u8, allocator := context.temp_allocator) -> string {
   buf, err := mem.alloc_bytes(100, mem.DEFAULT_ALIGNMENT, allocator)
   return strconv.write_int(buf[:], i64(val), 10)
+}
+
+package_settings :: proc(set: ^planet.PlanetModel) {
+  set.settings.noise_sample_scale_x = noise_sample_scale_x
+  set.settings.noise_sample_scale_y = noise_sample_scale_y
+  set.settings.total_amplitude = total_amplitude
+  set.settings.sea_level = sea_level
+  set.settings.has_oceans = oceans
+  set.settings.noise_frequency = noise_frequency
+  set.settings.noise_intensity = noise_intensity
+  set.settings.snow_factor = snow_factor
+  set.settings.ao_intensity = ao_intensity
+  set.settings.ao_darkness = ao_darkness
+  set.settings.ambient = ambient
+  set.settings.shore_margin = shore_margin
 }
