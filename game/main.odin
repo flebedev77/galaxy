@@ -18,7 +18,7 @@ when DEV {
 
 GRAVITATIONAL_CONSTANT :: 0.0001
 
-FUTURE_STEPS :: 1000
+FUTURE_STEPS :: 2000
 FUTURE_STEPS_DT :: 0.1
 
 GLOBAL_UP : rl.Vector3 : {0, 1, 0}
@@ -150,11 +150,15 @@ main :: proc() {
   player_model = rl.LoadModel("res/spaceship.glb")
   local_player = {
     model = &player_model,
-    position = {0, 100, 50},
+    position = {8000, 13, 0},
     size = {0.3, 0.1, 0.5},
-    forward = {1, 0, 0},
     camera_distance = 0.8,
-    max_throttle = 1
+    // camera_distance = 1,
+    max_throttle = 1,
+    min_throttle = -0.2,
+    up = GLOBAL_UP,
+    forward = {0, 0, 1},
+    right = {-1, 0, 0}
   }
 
   bullet_model = rl.LoadModelFromMesh(rl.GenMeshCube(0.1, 0.1, 1))
@@ -175,7 +179,7 @@ main :: proc() {
     is_static = true,
     position = rl.Vector3{0, 0, 0},
     velocity = rl.Vector3{0, 0, 0},
-    radius = 10000,
+    radius = 1000,
     color = rl.Color{230, 230, 0, 255},
     mass = 1000000,
     name = "Sun"
@@ -194,9 +198,9 @@ main :: proc() {
 
   append(&planets, Planet{
     is_static = false,
-    position = rl.Vector3{100600, 0, 0},
+    position = rl.Vector3{8000, 0, 0},
     velocity = rl.Vector3{0, 0, 318},
-    radius = 100,
+    radius = 10,
     color = rl.Color{0, 255, 0, 255},
     mass = 1000,
     name = "Earth",
@@ -214,6 +218,7 @@ main :: proc() {
 
   for !rl.WindowShouldClose() && !rl.IsKeyDown(.ESCAPE) {
     dt: f32 = rl.GetFrameTime() * simulation_speed_scalar
+    unmodified_dt: f32 = rl.GetFrameTime()
     gt: f32 = f32(rl.GetTime())
     mouse_pos = rl.GetMousePosition()
 
@@ -260,6 +265,7 @@ main :: proc() {
     for &planet in planets {
       // rl.DrawSphereWires(planet.position, planet.radius, 10, 10, planet.color)
       planet_draw(&planet)
+      planet_update(&planet, unmodified_dt)
       // rl.DrawSphere(planet.position, planet.radius, planet.color);
       if !planet.is_static { // Path prediction
 
