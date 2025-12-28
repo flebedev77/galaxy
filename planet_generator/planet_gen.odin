@@ -1,12 +1,10 @@
 package planet_generator
 import "core:fmt"
-import "core:math"
 import "core:strings"
 import "core:strconv"
 import rl "vendor:raylib"
 import rlgl "vendor:raylib/rlgl"
 import ini "core:encoding/ini"
-import "core:io"
 import "core:os"
 import "core:mem"
 
@@ -302,8 +300,11 @@ package_settings :: proc(set: ^planet.PlanetModel) {
   set.settings.snow_factor = snow_factor
   set.settings.ao_intensity = ao_intensity
   set.settings.ao_darkness = ao_darkness
+  set.settings.ao_weight = color_weight
   set.settings.ambient = ambient
   set.settings.shore_margin = shore_margin
   set.settings.seed_a = seed_a
   set.settings.seed_b = seed_b
+  set.settings.water_color = water_color
+  set.settings.snow_color = color
 }

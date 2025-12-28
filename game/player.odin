@@ -68,7 +68,7 @@ update_localplayer :: proc(camera: ^rl.Camera) {
     local_player.yaw -= mouse_delta.x * speed.x;
 
     mouse_scroll := rl.GetMouseWheelMove()
-    local_player.camera_distance += mouse_scroll
+    local_player.camera_distance -= mouse_scroll
 
     // if rl.IsKeyDown(.W) {
     //   local_player.pitch -= speed.y
@@ -123,8 +123,8 @@ update_localplayer :: proc(camera: ^rl.Camera) {
     rl.DrawLine3D(local_player.position, local_player.position + local_player.right * 1, rl.ORANGE)
 
     local_player.model.transform = model_lookat(
-      local_player.position,
-      local_player.position + local_player.forward,
+      {0,0,0},
+      local_player.forward,
       local_player.up
     )
     local_player.velocity *= 0.1 * frame_delta

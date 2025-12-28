@@ -150,7 +150,8 @@ main :: proc() {
   player_model = rl.LoadModel("res/spaceship.glb")
   local_player = {
     model = &player_model,
-    position = {8000, 13, 0},
+    // position = {2000, 10, 0},
+    position = {0, 25, 0},
     size = {0.3, 0.1, 0.5},
     camera_distance = 0.8,
     // camera_distance = 1,
@@ -198,7 +199,7 @@ main :: proc() {
 
   append(&planets, Planet{
     is_static = false,
-    position = rl.Vector3{8000, 0, 0},
+    position = rl.Vector3{2000, 0, 0},
     velocity = rl.Vector3{0, 0, 318},
     radius = 10,
     color = rl.Color{0, 255, 0, 255},
@@ -208,8 +209,22 @@ main :: proc() {
     has_model = true
   })
 
+
+  append(&planets, Planet{
+    is_static = false,
+    position = rl.Vector3{0, 0, 0},
+    velocity = rl.Vector3{0, 0, 0},
+    radius = 10,
+    color = rl.Color{0, 255, 0, 255},
+    mass = 1000,
+    name = "Test",
+    path_prediction_enabled = false,
+    has_model = true
+  })
+
   camera_focus_body = &planets[0]//0]
-  planet_init(&planets[2], "res/planet.ini")
+  planet_init(&planets[2], "res/earth.ini")
+  planet_init(&planets[3], "res/planet.ini")
 
 
 
@@ -262,6 +277,7 @@ main :: proc() {
 
     rl.BeginMode3D(camera)
 
+    update_localplayer(&camera)
     for &planet in planets {
       // rl.DrawSphereWires(planet.position, planet.radius, 10, 10, planet.color)
       planet_draw(&planet)
@@ -326,7 +342,6 @@ main :: proc() {
     rlgl.EnableBackfaceCulling()
     rlgl.EnableDepthMask()
 
-    update_localplayer(&camera)
     rl.EndMode3D()
 
     if game_state == .EDITOR {
